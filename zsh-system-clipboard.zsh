@@ -62,6 +62,19 @@ unfunction _zsh_system_clipboard_error
 unfunction _zsh_system_clipboard_suggest_to_install
 unfunction _zsh_system_clipboard_command_exists
 
+# Adapted from:
+# https://github.com/zsh-vi-more/evil-registers
+# License in ROOT/Zsh-vi-more_LICENSE
+function zsh-system-clipboard-vi-set-buffer() {
+  typeset -g _register_name
+  # return non-zero if read fails
+  if read -k 1 _register_name; then
+    zle .vi-set-buffer "$_register_name"
+    return 0
+  fi
+}
+zle -N vi-set-buffer zsh-system-clipboard-vi-set-buffer
+
 function zsh-system-clipboard-set-tmux(){ tmux load-buffer -; }
 function zsh-system-clipboard-get-tmux(){ tmux show-buffer; }
 # wl{c,p} stands for 'wayland with {CLIPBOARD,PRIMARY} selection'
@@ -89,8 +102,26 @@ function zsh-system-clipboard-get-pb(){ pbpaste; }
 function zsh-system-clipboard-set-termux(){ termux-clipboard-set; }
 function zsh-system-clipboard-get-termux(){ termux-clipboard-get; }
 
-function zsh-system-clipboard-set(){ zsh-system-clipboard-set-${ZSH_SYSTEM_CLIPBOARD_METHOD}; }
-function zsh-system-clipboard-get(){ zsh-system-clipboard-get-${ZSH_SYSTEM_CLIPBOARD_METHOD}; }
+function zsh-system-clipboard-set(){
+  if [[ ${_register_name:-\"} = [+*\"] ]]; then
+    zsh-system-clipboard-set-${ZSH_SYSTEM_CLIPBOARD_METHOD}
+  elif [[ ${_register_name} = [A-Z] ]]; then
+    local lowercase_register
+    lowercase_register="${_register_name:l}"
+    registers[$lowercase_register]="$registers[$lowercase_register]$(cat)"
+  else
+    registers[$_register_name]="$(cat)"
+  fi
+  unset _register_name
+}
+function zsh-system-clipboard-get(){
+  if [[ ${_register_name:-\"} = [+*\"] ]]; then
+    zsh-system-clipboard-get-${ZSH_SYSTEM_CLIPBOARD_METHOD}
+  else
+    printf '%s' "$registers[${_register_name:l}]"
+  fi
+  unset _register_name
+}
 
 function zsh-system-clipboard-vicmd-vi-yank() {
   zle vi-yank
@@ -104,7 +135,9 @@ zle -N zsh-system-clipboard-vicmd-vi-yank
 
 function zsh-system-clipboard-vicmd-vi-yank-eol() {
   zle vi-yank-eol
-  printf '%s' "$CUTBUFFER" | zsh-system-clipboard-set
+  if [[ ${_register_name:-\"} = [+*\"] ]]; then
+    printf '%s' "$CUTBUFFER" | zsh-system-clipboard-set
+  fi
 }
 zle -N zsh-system-clipboard-vicmd-vi-yank-eol
 
@@ -270,3 +303,6 @@ function () {
     done
   done
 }
+
+# Bind Y to yank until end of line
+bindkey -M vicmd Y zsh-system-clipboard-vicmd-vi-yank-eol
