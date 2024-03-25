@@ -109,7 +109,7 @@ function zsh-system-clipboard-set(){
     local lowercase_register
     lowercase_register="${_register_name:l}"
     registers[$lowercase_register]="$registers[$lowercase_register]$(cat)"
-  else
+  elif [[ ${_register_name} != [_\-] ]]; then
     registers[$_register_name]="$(cat)"
   fi
   unset _register_name
